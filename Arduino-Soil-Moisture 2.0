@@ -1,0 +1,88 @@
+// ตัว Library ตัวจอ LCD มีชิพ I2C
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+// กำหนดขาอนาล็อกสำหรับอ่านค่าเซนเซอร์วัดความชื้น
+#define SOIL_SENSOR_PIN A0
+
+// Address ของ LCD 0x27 ขนาด 20 4
+LiquidCrystal_I2C lcd(0x27, 20, 4);
+
+void setup() {
+  // เอาไว้แสดงผลบนคอม ไปที่ Tools -> Serial Monitor+++++++++++++++++++++++++++++++++++++++++++++
+  Serial.begin(9600);
+  Serial.println("SoilMoisture Monitor Starting...");
+
+  // เปิดใช้งานการทำงานของจอ LCD----------------------------------------------------------------------
+  lcd.init();
+  lcd.backlight(); // เปิดไฟพื้นหลังของ LCD
+
+  // แสดงข้อความเริ่มต้น LCD
+  lcd.setCursor(0, 0); 
+  lcd.print("Sawadee GuideNagisa");
+  delay(3000); // หน่วงเวลา 3 วินาที
+
+}
+
+void loop() {
+  // อ่านค่าดิบจากเซนเซอร์ความชื้น 0-1023 0 คือเปียกที่สุด 1023 แห้งที่สุด----------------------------------------
+  int sensorRawValue = analogRead(SOIL_SENSOR_PIN);
+
+  // แปลงค่าดิบที่เซ็นเซอร์วัดได้ (0-1023) ให้เป็นเปอร์เซ็นต์ความชื้น (0-100%)
+  // ใช้ ตัวขิง map() เพื่อแปลงช่วงค่า โดยที่เปียกที่สุด (0) จะกลายเป็นเปอร์เซ็นต์สูงสุด (100)
+  // แห้งที่สุด (1023) จะกลายเป็นเปอร์เซ็นต์ต่ำสุด (0)
+  int moisturePercent = map(sensorRawValue, 0, 1023, 100, 0);
+
+  // จำกัดค่าเปอร์เซ็นต์ให้อยู่ที่ 0-100%
+  if (moisturePercent < 0) {
+    moisturePercent = 0;
+  }
+  if (moisturePercent > 100) {
+    moisturePercent = 100;
+  }
+
+  // กำหนดสถานะความชื้นของดิน Wet, Normal, Dry, Danger
+  String moistureStatus;
+  // หากเซ็นเซอร์ไม่ได้เชื่อมต่อเลย อาจอ่านค่าได้ 0 หรือ 1023 ตลอดเวลา
+  if (sensorRawValue == 0 || sensorRawValue == 1023) {
+    moistureStatus = "Error!"; // ถ้าตัว Sensor พัง จะแสดงผลเป็น Error! ให้อ่านค่าผิดเพี่ยนไปจากเดิม ไม่ 0 ก็ 1023 เลย /0-100%
+  } else if (moisturePercent >= 70) {
+    moistureStatus = "Wet";         // 70-100% = ดินเปียกมาก
+  } else if (moisturePercent >= 50) {
+    moistureStatus = "Normal";      // 50-69% = ดินชื้นปกติ
+  } else if (moisturePercent >= 40) {
+    moistureStatus = "Dry";         // 40-49% = ดินแห้งเล็กน้อย
+  } else {
+    moistureStatus = "Danger";      // 0-39% = ดินแห้งมาก
+  }
+
+  // แสดงผลข้อมูลบนจอ LCD ----------------------------------------------------------------------------------
+  lcd.clear(); // ล้างจอเพื่ออัปเดตข้อมูลใหม่
+
+  // แถวที่ 0 ชื่อโปรเจกต์
+  lcd.setCursor(0, 0);
+  lcd.print("SoilMoisture Monitor");
+
+  // แถวที่ 1 แสดงเปอร์เซ็นต์ความชื้นและสถานะ
+  lcd.setCursor(0, 1);
+  lcd.print("Moisture: ");
+  lcd.print(moisturePercent);
+  lcd.print("% ");
+  lcd.print(moistureStatus);
+
+  // แถวที่ 2: แสดงค่าที่วัดได้จากตัววัดความชิ้นโดยตรง ไม่แปลงค่า
+  lcd.setCursor(0, 2);
+  lcd.print("SensorValue: ");
+  lcd.print(sensorRawValue);
+
+  // แสดงผลข้อมูลบน Serial Monitor +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+  Serial.print("Raw Value: ");
+  Serial.print(sensorRawValue);
+  Serial.print(" | Moisture: ");
+  Serial.print(moisturePercent);
+  Serial.print("% | Status: ");
+  Serial.println(moistureStatus); // เปลี่ยนเป็น println เพื่อขึ้นบรรทัดใหม่
+
+  // หน่วงเวลา 0.5 วินาที
+  delay(500);
+}
